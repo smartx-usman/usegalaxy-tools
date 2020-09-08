@@ -71,6 +71,41 @@ jobs:
       - name: Install Planemo
         run: pip3 install planemo
 
+      - name: Detecting changes to tool files
+        run: |
+          COMMIT_RANGE=origin/master;
+          TOOLSET= ;
+          while read op path; do
+              if [ -n "$TOOLSET" -a "$TOOLSET" != "${path%%/*}" ]; then
+                  [ -t 0 ] && echo -e '\033[0;31mERROR:' "$@" '\033[0m' || echo 'ERROR:' "$@" "Changes to tools in multiple toolsets found: ${TOOLSET} != ${path%%/*}"
+              elif [ -z "$TOOLSET" ]; then
+                  TOOLSET="${path%%/*}"
+              fi
+
+              case "${path##*.}" in
+                  lock)
+                      ;;
+                  *)
+                      continue
+                      ;;
+              esac
+              case "$op" in
+                  A|M)
+                      echo "$op $path"
+                      TOOL_YAMLS+=("${path}")
+                      ;;
+              esac
+          done < <(git diff --color=never --name-status "$COMMIT_RANGE" -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
+
+          declare -p TOOLSET TOOL_YAMLS;
+
+          [ ${#TOOL_YAMLS[@]} -gt 0 ] || echo 'No tool changes, terminating';
+
+          echo "Getting repo for toolset: ${TOOLSET}";
+
+          REPO="${TOOLSET_REPOS[$TOOLSET]}";
+          declare -p REPO;
+
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
