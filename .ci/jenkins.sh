@@ -7,7 +7,6 @@ set -euo pipefail
 LOCAL_PORT=8080
 REMOTE_PORT=8080
 GALAXY_URL="http://127.0.0.1:${LOCAL_PORT}"
-SSH_MASTER_SOCKET_DIR="${HOME}/.cache/usegalaxy-tools"
 
 # Set to 'centos:7' and set GALAXY_GIT_* below to use a clone
 GALAXY_DOCKER_IMAGE='galaxy/galaxy-k8s:20.05'
@@ -62,17 +61,12 @@ WORKDIR=
 USER_UID="$(id -u)"
 GALAXY_DATABASE_TMPDIR=
 GALAXY_SOURCE_TMPDIR=
-OVERLAYFS_UPPER=
-OVERLAYFS_LOWER=
-OVERLAYFS_WORK=
 OVERLAYFS_MOUNT=
 
 SSH_MASTER_UP=false
 CVMFS_TRANSACTION_UP=false
 GALAXY_CONTAINER_UP=false
 LOCAL_CVMFS_MOUNTED=false
-LOCAL_OVERLAYFS_MOUNTED=false
-
 
 function trap_handler() {
     { set +x; } 2>/dev/null
@@ -210,30 +204,6 @@ function detect_changes() {
 }
 
 
-function set_repo_vars() {
-    REPO_USER="${REPO_USERS[$REPO]}"
-    REPO_STRATUM0="${REPO_STRATUM0S[$REPO]}"
-    CONDA_PATH="${CONDA_PATHS[$REPO]}"
-    INSTALL_DATABASE="${INSTALL_DATABASES[$REPO]}"
-    SHED_TOOL_CONFIG="${SHED_TOOL_CONFIGS[$REPO]}"
-    SHED_TOOL_DIR="${SHED_TOOL_DIRS[$REPO]}"
-    SHED_TOOL_DATA_TABLE_CONFIG="${SHED_TOOL_DATA_TABLE_CONFIGS[$REPO]}"
-    SHED_DATA_MANAGER_CONFIG="${SHED_DATA_MANAGER_CONFIGS[$REPO]}"
-    CONTAINER_NAME="usegalaxy-tools-${REPO_USER}-${BUILD_NUMBER}"
-    if $USE_LOCAL_OVERLAYFS; then
-        OVERLAYFS_LOWER="${WORKSPACE}/${BUILD_NUMBER}/lower"
-        OVERLAYFS_UPPER="${WORKSPACE}/${BUILD_NUMBER}/upper"
-        OVERLAYFS_WORK="${WORKSPACE}/${BUILD_NUMBER}/work"
-        OVERLAYFS_MOUNT="${WORKSPACE}/${BUILD_NUMBER}/mount"
-        CVMFS_CACHE="${WORKSPACE}/${BUILD_NUMBER}/cvmfs-cache"
-    else
-        OVERLAYFS_UPPER="/var/spool/cvmfs/${REPO}/scratch/current"
-        OVERLAYFS_LOWER="/var/spool/cvmfs/${REPO}/rdonly"
-        OVERLAYFS_MOUNT="/cvmfs/${REPO}"
-    fi
-}
-
-
 function setup_ephemeris() {
     log "Setting up Ephemeris"
     log_exec python3 -m venv ephemeris
@@ -244,95 +214,6 @@ function setup_ephemeris() {
     log_exec pip install --upgrade pip wheel
     log_exec pip install --index-url https://wheels.galaxyproject.org/simple/ \
         --extra-index-url https://pypi.org/simple/ "${EPHEMERIS:=ephemeris}" #"${PLANEMO:=planemo}"
-}
-
-
-function mount_overlay() {
-    log "Mounting OverlayFS/CVMFS"
-    log_debug "\$JOB_NAME: ${JOB_NAME}, \$WORKSPACE: ${WORKSPACE}, \$BUILD_NUMBER: ${BUILD_NUMBER}"
-    log_exec mkdir -p "$OVERLAYFS_LOWER" "$OVERLAYFS_UPPER" "$OVERLAYFS_WORK" "$OVERLAYFS_MOUNT" "$CVMFS_CACHE"
-    log_exec cvmfs2 -o config=.ci/cvmfs-fuse.conf,allow_root "$REPO" "$OVERLAYFS_LOWER"
-    LOCAL_CVMFS_MOUNTED=true
-    # Attempting to create files as root yields EPERM, even with allow_root/allow_other and user_allow_other
-    # FIXME: unprivilged would be preferable but file creation inside docker fails with fuse-overlayfs
-    #log_exec fuse-overlayfs \
-    #    -o "lowerdir=${OVERLAYFS_LOWER},upperdir=${OVERLAYFS_UPPER},workdir=${OVERLAYFS_WORK},allow_root" \
-    #    "$OVERLAYFS_MOUNT"
-    log_exec sudo --preserve-env=JOB_NAME --preserve-env=WORKSPACE --preserve-env=BUILD_NUMBER \
-        /usr/local/sbin/jenkins-mount-overlayfs
-    LOCAL_OVERLAYFS_MOUNTED=true
-}
-
-
-function unmount_overlay() {
-    log "Unmounting OverlayFS/CVMFS"
-    if $LOCAL_OVERLAYFS_MOUNTED; then
-        #log_exec fusermount -u "$OVERLAYFS_MOUNT"
-        log_exec sudo --preserve-env=JOB_NAME --preserve-env=WORKSPACE --preserve-env=BUILD_NUMBER \
-            /usr/local/sbin/jenkins-umount-overlayfs
-        LOCAL_OVERLAYFS_MOUNTED=false
-    fi
-    log_exec fusermount -u "$OVERLAYFS_LOWER"
-    log_exec rm -rf "${WORKSPACE}/${BUILD_NUMBER}"
-    LOCAL_CVMFS_MOUNTED=false
-}
-
-
-function start_ssh_control() {
-    log "Starting SSH control connection to Stratum 0"
-    SSH_MASTER_SOCKET="${SSH_MASTER_SOCKET_DIR}/ssh-tunnel-${REPO_USER}-${REPO_STRATUM0}.sock"
-    log_exec mkdir -p "$SSH_MASTER_SOCKET_DIR"
-    $USE_LOCAL_OVERLAYFS || port_forward_flag="-L 127.0.0.1:${LOCAL_PORT}:127.0.0.1:${REMOTE_PORT}"
-    log_exec ssh -S "$SSH_MASTER_SOCKET" -M ${port_forward_flag:-} -Nfn -l "$REPO_USER" "$REPO_STRATUM0"
-    USER_UID=$(exec_on id -u)
-    SSH_MASTER_UP=true
-}
-
-
-function stop_ssh_control() {
-    log "Stopping SSH control connection to Stratum 0"
-    log_exec ssh -S "$SSH_MASTER_SOCKET" -O exit -l "$REPO_USER" "$REPO_STRATUM0"
-    rm -f "$SSH_MASTER_SOCKET"
-    SSH_MASTER_UP=false
-}
-
-
-function begin_transaction() {
-    # $1 >= 0 number of seconds to retry opening transaction for
-    local max_wait="${1:--1}"
-    local start=$(date +%s)
-    local elapsed='-1'
-    local sleep='4'
-    local max_sleep='60'
-    log "Opening transaction on $REPO"
-    while ! exec_on cvmfs_server transaction "$REPO"; do
-        log "Failed to open CVMFS transaction on ${REPO}"
-        if [ "$max_wait" -eq -1 ]; then
-            log_exit_error 'Transaction open retry disabled, giving up!'
-        elif [ "$elapsed" -ge "$max_wait" ]; then
-            log_exit_error "Time waited (${elapsed}s) exceeds limit (${max_wait}s), giving up!"
-        fi
-        log "Will retry in ${sleep}s"
-        sleep $sleep
-        [ $sleep -ne $max_sleep ] && let sleep="${sleep}*2"
-        [ $sleep -gt $max_sleep ] && sleep="$max_sleep"
-        let elapsed="$(date +%s)-${start}"
-    done
-    CVMFS_TRANSACTION_UP=true
-}
-
-
-function abort_transaction() {
-    log "Aborting transaction on $REPO"
-    exec_on cvmfs_server abort -f "$REPO"
-    CVMFS_TRANSACTION_UP=false
-}
-
-
-function publish_transaction() {
-    log "Publishing transaction on $REPO"
-    exec_on "cvmfs_server publish -a 'tools-${GIT_COMMIT:0:7}' -m 'Automated tool installation for commit ${GIT_COMMIT}' ${REPO}"
-    CVMFS_TRANSACTION_UP=false
 }
 
 
@@ -576,19 +457,6 @@ function show_logs() {
         log_debug "contents of server log";
     fi
     exec_on docker logs $lines "$CONTAINER_NAME"
-    # bgruening log paths
-    #for f in /var/log/nginx/error.log /var/log/nginx/access.log /home/galaxy/logs/uwsgi.log; do
-    #    log_debug "tail of ${f}";
-    #    exec_on docker exec "$CONTAINER_NAME" tail -500 $f;
-    #done;
-}
-
-
-function show_paths() {
-    log_debug "contents of \$GALAXY_DATABASE_TMPDIR (will be discarded)"
-    exec_on tree -L 6 "$GALAXY_DATABASE_TMPDIR"
-    log_debug "contents of OverlayFS upper mount (will be published)"
-    exec_on tree -L 6 "$OVERLAYFS_UPPER"
 }
 
 
@@ -600,105 +468,31 @@ function install_tools() {
         log_exec shed-tools install -v -g "$GALAXY_URL" -a "$API_KEY" -t "$tool_yaml" || {
             log_error "Tool installation failed"
             show_logs
-            show_paths
             log_exit_error "Terminating build due to previous errors"
         }
-        #shed-tools install -v -a deadbeef -t "$tool_yaml" --test --test_json "${tool_yaml##*/}"-test.json || {
-        #    # TODO: test here if test failures should be ignored (but we can't separate test failures from install
-        #    # failures at the moment) and also we can't easily get the job stderr
-        #    [ "$TRAVIS_PULL_REQUEST" == "false" -a "$TRAVIS_BRANCH" == "master" ] || {
-        #        log_error "Tool install/test failed";
-        #        show_logs
-        #        show_paths
-        #        log_exit_error "Terminating build due to previous errors"
-        #    };
-        #}
     done
 }
 
 
 
-function check_for_repo_changes() {
-    local stc="${SHED_TOOL_CONFIG%,*}"
-    # probbably don't need this unless things fail
-    #log "Showing log"
-    #show_logs
-    log "Checking for changes to repo"
-    show_paths
-    log_debug "diff of shed_tool_conf.xml"
-    exec_on diff -u "${OVERLAYFS_LOWER}${stc##*${REPO}}" "${OVERLAYFS_MOUNT}${stc##*${REPO}}" || true
-    log_debug "diff of shed_tool_data_table_conf.xml"
-    exec_on diff -u "${OVERLAYFS_LOWER}${SHED_TOOL_DATA_TABLE_CONFIG##*${REPO}}" \
-        "${OVERLAYFS_MOUNT}${SHED_TOOL_DATA_TABLE_CONFIG##*${REPO}}" || true
-    log_debug "diff of shed_data_manager.xml"
-    exec_on diff -u "${OVERLAYFS_LOWER}${SHED_DATA_MANAGER_CONFIG##*${REPO}}" \
-        "${OVERLAYFS_MOUNT}${SHED_DATA_MANAGER_CONFIG##*${REPO}}" || true
-    exec_on [ -d "${OVERLAYFS_UPPER}${CONDA_PATH##*${REPO}}" -o -d "${OVERLAYFS_UPPER}${SHED_TOOL_DIR##*${REPO}}" ] || {
-        log_error "Tool installation failed";
-        show_logs
-        log_exit_error "Terminating build: expected changes to ${OVERLAYFS_UPPER} not found!";
-    }
-}
-
-
-function post_install() {
-    log "Running post-installation tasks"
-    exec_on "find '$OVERLAYFS_UPPER' -perm -u+r -not -perm -o+r -not -type l -print0 | xargs -0 --no-run-if-empty chmod go+r"
-    exec_on "find '$OVERLAYFS_UPPER' -perm -u+rx -not -perm -o+rx -not -type l -print0 | xargs -0 --no-run-if-empty chmod go+rx"
-    #exec_on ${CONDA_PATH}/bin/conda clean --tarballs --yes
-    exec_on docker run --rm --user "$USER_UID" --name="${CONTAINER_NAME}" \
-        -v "${OVERLAYFS_MOUNT}:/cvmfs/${REPO}" \
-        -v "${WORKDIR}/condarc:${CONDA_PATH}/.condarc" \
-        "$GALAXY_DOCKER_IMAGE" ${CONDA_PATH}/bin/conda clean --tarballs --yes
-    # we're fixing the links for everything here not just the new stuff in $OVERLAYFS_UPPER
-    exec_on "find '${OVERLAYFS_UPPER}${CONDA_PATH##*${REPO}}/envs' -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 --no-run-if-empty -I_ENVPATH_ ln -s '${CONDA_PATH}/bin/activate' '_ENVPATH_/bin/activate'" || true
-    exec_on "find '${OVERLAYFS_UPPER}${CONDA_PATH##*${REPO}}/envs' -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 --no-run-if-empty -I_ENVPATH_ ln -s '${CONDA_PATH}/bin/deactivate' '_ENVPATH_/bin/deactivate'" || true
-    exec_on "find '${OVERLAYFS_UPPER}${CONDA_PATH##*${REPO}}/envs' -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 --no-run-if-empty -I_ENVPATH_ ln -s '${CONDA_PATH}/bin/conda' '_ENVPATH_/bin/conda'" || true
-    [ -n "${WORKDIR:-}" ] && exec_on rm -rf "$WORKDIR"
-}
-
-
-function copy_upper_to_stratum0() {
-    log "Copying changes to Stratum 0"
-    set -x
-    rsync -ah -e "ssh -o ControlPath=${SSH_MASTER_SOCKET}" --stats "${OVERLAYFS_UPPER}/" "${REPO_USER}@${REPO_STRATUM0}:/cvmfs/${REPO}"
-    { rc=$?; set +x; } 2>/dev/null
-    return $rc
-}
-
-
 function do_install_local() {
-    mount_overlay
     run_galaxy
     wait_for_galaxy
     install_tools
-    check_for_repo_changes
     stop_galaxy
     clean_preconfigured_container
-    post_install
     if $PUBLISH; then
-        start_ssh_control
-        begin_transaction 600
-        copy_upper_to_stratum0
-        publish_transaction
-        stop_ssh_control
+       echo TBA
     fi
-    unmount_overlay
 }
 
 
 function do_install_remote() {
-    start_ssh_control
-    begin_transaction
     run_galaxy
     wait_for_galaxy
     install_tools
-    check_for_repo_changes
     stop_galaxy
     clean_preconfigured_container
-    post_install
-    $PUBLISH && publish_transaction || abort_transaction
-    stop_ssh_control
 }
 
 
@@ -706,7 +500,6 @@ function main() {
     check_bot_command
     load_repo_configs
     detect_changes
-    set_repo_vars
     setup_ephemeris
     if $USE_LOCAL_OVERLAYFS; then
         do_install_local
