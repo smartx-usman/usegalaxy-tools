@@ -17,7 +17,7 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        python-version: [ 3.6.9 ]
+        python-version: [ '3.x', 'pypy3' ]
     steps:
       - name: Print github context properties
         run: |
@@ -28,9 +28,10 @@ jobs:
           echo 'base_ref: ${{ github.base_ref }}'
           echo 'event.before: ${{ github.event.before }}'
           echo 'event.after: ${{ github.event.after }}'
-      - uses: actions/setup-python@v1
+      - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
+          architecture: x64
       - name: Determine latest galaxy commit
         run: echo ::set-env name=GALAXY_HEAD_SHA::$(git ls-remote ${{ env.GALAXY_REPO }} refs/heads/${{ env.GALAXY_RELEASE }} | cut -f1)
       - name: Save latest galaxy commit to artifact file
