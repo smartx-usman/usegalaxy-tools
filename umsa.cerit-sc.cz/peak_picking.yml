@@ -1,0 +1,5 @@
+tool_panel_section_label: Peak Picking
+tools:
+- name: recetox_aplcms_unsupervised
+  owner: recetox
+  tool_shed_url: https://testtoolshed.g2.bx.psu.edu/
