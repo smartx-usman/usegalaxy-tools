@@ -36,7 +36,7 @@ jobs:
       - name: Save latest galaxy commit to artifact file
         run: echo ${{ env.GALAXY_HEAD_SHA }} > galaxy.sha
       - name: Latest galaxy commit SHA
-          run: cat galaxy.sha
+        run: cat galaxy.sha
 
   # This workflow contains a single job called "build"
   build:
