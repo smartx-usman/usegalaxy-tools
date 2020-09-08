@@ -14,29 +14,30 @@ on:
 jobs:
   setup:
     name: Setup cache and determine changed repositories
-      runs-on: self-hosted
-      strategy:
-        matrix:
-          python-version: [ 3.7 ]
-      steps:
-        - name: Print github context properties
-          run: |
-            echo 'event: ${{ github.event_name }}'
-            echo 'sha: ${{ github.sha }}'
-            echo 'ref: ${{ github.ref }}'
-            echo 'head_ref: ${{ github.head_ref }}'
-            echo 'base_ref: ${{ github.base_ref }}'
-            echo 'event.before: ${{ github.event.before }}'
-            echo 'event.after: ${{ github.event.after }}'
-        - uses: actions/setup-python@v1
-          with:
-            python-version: ${{ matrix.python-version }}
-        - name: Determine latest galaxy commit
-          run: echo ::set-env name=GALAXY_HEAD_SHA::$(git ls-remote ${{ env.GALAXY_REPO }} refs/heads/${{ env.GALAXY_RELEASE }} | cut -f1)
-        - name: Save latest galaxy commit to artifact file
-          run: echo ${{ env.GALAXY_HEAD_SHA }} > galaxy.sha
-        - name: Latest galaxy commit SHA
-            run: cat galaxy.sha
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        python-version: [ 3.7 ]
+    steps:
+      - name: Print github context properties
+        run: |
+          echo 'event: ${{ github.event_name }}'
+          echo 'sha: ${{ github.sha }}'
+          echo 'ref: ${{ github.ref }}'
+          echo 'head_ref: ${{ github.head_ref }}'
+          echo 'base_ref: ${{ github.base_ref }}'
+          echo 'event.before: ${{ github.event.before }}'
+          echo 'event.after: ${{ github.event.after }}'
+      - uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Determine latest galaxy commit
+        run: echo ::set-env name=GALAXY_HEAD_SHA::$(git ls-remote ${{ env.GALAXY_REPO }} refs/heads/${{ env.GALAXY_RELEASE }} | cut -f1)
+      - name: Save latest galaxy commit to artifact file
+        run: echo ${{ env.GALAXY_HEAD_SHA }} > galaxy.sha
+      - name: Latest galaxy commit SHA
+          run: cat galaxy.sha
+
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
