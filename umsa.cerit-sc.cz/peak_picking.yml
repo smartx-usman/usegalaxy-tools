@@ -3,6 +3,6 @@ tools:
 - name: recetox_aplcms_unsupervised
   owner: recetox
   tool_shed_url: https://testtoolshed.g2.bx.psu.edu/
-- name: recetox_aplcms_supervised
+- name: recetox_aplcms_hybrid
   owner: recetox
   tool_shed_url: https://testtoolshed.g2.bx.psu.edu/
