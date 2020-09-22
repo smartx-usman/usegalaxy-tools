@@ -68,8 +68,8 @@ jobs:
       - name: Install Planemo
         run: pip3 install planemo
 
-      - name: Branch name
-        run: echo running on branch ${GITHUB_REF##*/}
+      - name: Branch names
+        run: echo running on the branch ${GITHUB_REF##*/}
 
       - name: Detecting changes to tool files
         run: |
@@ -96,7 +96,7 @@ jobs:
                       TOOL_YAMLS+=("${path}")
                       ;;
               esac
-          done < <(git diff --no-index --color=never --name-status "$COMMIT_RANGE" -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
+          done < <(git diff --color=never --name-status -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
 
           declare -p TOOLSET TOOL_YAMLS;
 
