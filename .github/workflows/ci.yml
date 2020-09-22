@@ -68,6 +68,9 @@ jobs:
       - name: Install Planemo
         run: pip3 install planemo
 
+      - name: Branch name
+        run: echo running on branch ${GITHUB_REF##*/}
+
       - name: Detecting changes to tool files
         run: |
           COMMIT_RANGE=origin/master;
