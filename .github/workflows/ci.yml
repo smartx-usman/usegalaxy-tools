@@ -93,7 +93,7 @@ jobs:
                       TOOL_YAMLS+=("${path}")
                       ;;
               esac
-          done < <(git diff --color=never --name-status "$COMMIT_RANGE" -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
+          done < <(git diff --no-index --color=never --name-status "$COMMIT_RANGE" -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
 
           declare -p TOOLSET TOOL_YAMLS;
 
