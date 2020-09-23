@@ -35,7 +35,7 @@ jobs:
       - name: Python version installed
         run: python3 --version
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v1
 
       - name: Determine latest galaxy commit
         run: echo ::set-env name=GALAXY_HEAD_SHA::$(git ls-remote ${{ env.GALAXY_REPO }} refs/heads/${{ env.GALAXY_RELEASE }} | cut -f1)
@@ -72,7 +72,7 @@ jobs:
         run: echo running on the branch ${GITHUB_REF##*/}
 
       - name: Directory structure
-        run: git diff --color=never --name-status
+        run: git diff --color=never --name-status dev..master
 
       - name: Detecting changes to tool files
         run: |
@@ -99,7 +99,7 @@ jobs:
                       TOOL_YAMLS+=("${path}")
                       ;;
               esac
-          done < <(git diff --color=never --name-status -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
+          done < <(git diff --color=never --name-status dev..master -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
 
           declare -p TOOLSET TOOL_YAMLS;
 
