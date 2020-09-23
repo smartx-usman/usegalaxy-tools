@@ -72,7 +72,7 @@ jobs:
         run: echo running on the branch ${GITHUB_REF##*/}
 
       - name: Directory structure
-        run: git diff --color=never --name-status ${{ github.head_ref }} ${{ github.base_ref }}
+        run: git diff ${{ github.head_ref }}..${{ github.base_ref }} --color=never --name-status
 
       - name: Detecting changes to tool files
         run: |
@@ -99,7 +99,7 @@ jobs:
                       TOOL_YAMLS+=("${path}")
                       ;;
               esac
-          done < <(git diff --color=never --name-status ${{ github.head_ref }} ${{ github.base_ref }} -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
+          done < <(git diff ${{ github.head_ref }}..${{ github.base_ref }} --color=never --name-status -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
 
           declare -p TOOLSET TOOL_YAMLS;
 
