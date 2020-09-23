@@ -72,7 +72,7 @@ jobs:
         run: echo running on the branch ${GITHUB_REF##*/}
 
       - name: Directory structure
-        run: git diff --color=never --name-status dev..master
+        run: git diff --color=never --name-status
 
       - name: Detecting changes to tool files
         run: |
