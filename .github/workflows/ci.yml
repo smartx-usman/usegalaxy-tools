@@ -71,41 +71,44 @@ jobs:
       - name: Branch names
         run: echo running on the branch ${GITHUB_REF##*/}
 
-      - name: Detecting changes to tool files
-        run: |
-          COMMIT_RANGE=origin/master;
-          TOOLSET= ;
-          . ./.ci/repos.conf;
-          while read op path; do
-              if [ -n "$TOOLSET" -a "$TOOLSET" != "${path%%/*}" ]; then
-                  [ -t 0 ] && echo -e '\033[0;31mERROR:' "$@" '\033[0m' || echo 'ERROR:' "$@" "Changes to tools in multiple toolsets found: ${TOOLSET} != ${path%%/*}"
-              elif [ -z "$TOOLSET" ]; then
-                  TOOLSET="${path%%/*}"
-              fi
+      - name: Directory structure
+        run: ls -la
 
-              case "${path##*.}" in
-                  lock)
-                      ;;
-                  *)
-                      continue
-                      ;;
-              esac
-              case "$op" in
-                  A|M)
-                      echo "$op $path"
-                      TOOL_YAMLS+=("${path}")
-                      ;;
-              esac
-          done < <(git diff-tree --color=never --name-status -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
-
-          declare -p TOOLSET TOOL_YAMLS;
-
-          [ ${#TOOL_YAMLS[@]} -gt 0 ] || echo 'No tool changes, terminating';
-
-          echo "Getting repo for toolset: ${TOOLSET}";
-
-          REPO="${TOOLSET_REPOS[$TOOLSET]}";
-          declare -p REPO;
+#      - name: Detecting changes to tool files
+#        run: |
+#          COMMIT_RANGE=origin/master;
+#          TOOLSET= ;
+#          . ./.ci/repos.conf;
+#          while read op path; do
+#              if [ -n "$TOOLSET" -a "$TOOLSET" != "${path%%/*}" ]; then
+#                  [ -t 0 ] && echo -e '\033[0;31mERROR:' "$@" '\033[0m' || echo 'ERROR:' "$@" "Changes to tools in multiple toolsets found: ${TOOLSET} != ${path%%/*}"
+#              elif [ -z "$TOOLSET" ]; then
+#                  TOOLSET="${path%%/*}"
+#              fi
+#
+#              case "${path##*.}" in
+#                  lock)
+#                      ;;
+#                  *)
+#                      continue
+#                      ;;
+#              esac
+#              case "$op" in
+#                  A|M)
+#                      echo "$op $path"
+#                      TOOL_YAMLS+=("${path}")
+#                      ;;
+#              esac
+#          done < <(git diff-tree --color=never --name-status -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
+#
+#          declare -p TOOLSET TOOL_YAMLS;
+#
+#          [ ${#TOOL_YAMLS[@]} -gt 0 ] || echo 'No tool changes, terminating';
+#
+#          echo "Getting repo for toolset: ${TOOLSET}";
+#
+#          REPO="${TOOLSET_REPOS[$TOOLSET]}";
+#          declare -p REPO;
 
   # This workflow contains a single job called "build"
   build:
