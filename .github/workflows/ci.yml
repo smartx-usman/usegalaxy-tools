@@ -56,7 +56,7 @@ jobs:
         id: cache-pip
         with:
           path: ~/.cache/pip
-          key: pip_cache_py_gxy_${{ env.GALAXY_HEAD_SHA }}
+          key: pip_cache_gxy_${{ env.GALAXY_HEAD_SHA }}
 
 #      - name: Cache .planemo
 #        uses: actions/cache@v2
