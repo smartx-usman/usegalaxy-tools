@@ -107,7 +107,7 @@ jobs:
 
           echo "Getting repo for toolset: ${TOOLSET}";
 
-          echo "::set-env name=TOOLSET1::$(TOOLSET)";
+          echo "::set-env name=TOOLSET1::${TOOLSET}";
 
           REPO="${TOOLSET_REPOS[$TOOLSET]}";
           declare -p REPO;
