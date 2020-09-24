@@ -71,10 +71,10 @@ jobs:
       - name: Branch names
         run: echo running on the branch ${GITHUB_REF##*/}
 
-      - name: Directory structure
+      - name: Git diff
         run: git diff --color=never --name-status origin/master HEAD --
 
-      - name: Detecting changes to tool files
+      - name: Detecting changes to the tool files
         run: |
           COMMIT_RANGE=origin/master;
           TOOLSET= ;
@@ -107,13 +107,13 @@ jobs:
 
           echo "Getting repo for toolset: ${TOOLSET}";
 
-          echo ::set-env name=TOOLSET::$(TOOLSET);
+          echo "::set-env name=TOOLSET1::$(TOOLSET)";
 
           REPO="${TOOLSET_REPOS[$TOOLSET]}";
           declare -p REPO;
 
       - name: make TOOLSET=<toolset_dir> <target>
-        run: make TOOLSET=${{ env.TOOLSET }} lint
+        run: make TOOLSET=${{ env.TOOLSET1 }} lint
 
   # This workflow contains a single job called "build"
   build:
