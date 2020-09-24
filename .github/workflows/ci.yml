@@ -46,11 +46,6 @@ jobs:
       - name: Latest galaxy commit SHA
         run: cat galaxy.sha
 
-      - uses: actions/upload-artifact@v2
-        with:
-          name: Workflow artifacts
-          path: galaxy.sha
-
       - name: Cache .cache/pip
         uses: actions/cache@v2
         id: cache-pip
@@ -116,7 +111,12 @@ jobs:
           declare -p REPO;
 
       - name: make TOOLSET=<toolset_dir> <target>
-        run: make TOOLSET=${{ env.TOOLSET }} lint
+        run: make TOOLSET=${{ env.TOOLSET }} lint > lint-result.txt
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: Linting artifacts
+          path: lint-result.txt
 
   # This workflow contains a single job called "build"
   build:
