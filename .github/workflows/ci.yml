@@ -107,8 +107,13 @@ jobs:
 
           echo "Getting repo for toolset: ${TOOLSET}";
 
+          echo ::set-env name=TOOLSET::$(TOOLSET);
+
           REPO="${TOOLSET_REPOS[$TOOLSET]}";
           declare -p REPO;
+
+      - name: make TOOLSET=<toolset_dir> <target>
+        run: make TOOLSET=${{ env.TOOLSET }} lint
 
   # This workflow contains a single job called "build"
   build:
