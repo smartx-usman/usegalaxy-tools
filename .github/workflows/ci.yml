@@ -68,6 +68,9 @@ jobs:
       - name: Install Planemo
         run: pip3 install planemo
 
+      - name: Install requirements
+        run: pip3 install -r requirements.txt
+
       - name: Branch names
         run: echo running on the branch ${GITHUB_REF##*/}
 
