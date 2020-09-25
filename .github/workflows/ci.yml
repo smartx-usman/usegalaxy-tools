@@ -60,10 +60,10 @@ jobs:
 #          path: ~/.planemo
 #          key: planemo_cache_py_gxy_${{ env.GALAXY_HEAD_SHA }}
 
-      - name: Install Planemo
-        run: pip3 install planemo
+#      - name: Install Planemo
+#        run: pip3 install planemo
 
-      - name: Install requirements
+      - name: Install planemo and other requirements
         run: pip3 install -r requirements.txt
 
       - name: Branch names
@@ -72,9 +72,16 @@ jobs:
       - name: Git diff
         run: git diff --color=never --name-status origin/master HEAD --
 
+      - name: Set commit range (push to the master branch, e.g. merge)
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        run: echo ::set-env name=COMMIT_RANGE::${{ github.event.before }}..""
+
+      - name: Set commit range (pull request)
+        if: github.event_name == 'pull_request'
+        run: echo ::set-env name=COMMIT_RANGE::"HEAD~.."
+
       - name: Detecting changes to the tool files
         run: |
-          COMMIT_RANGE=origin/master;
           TOOLSET= ;
           . ./.ci/repos.conf;
           while read op path; do
@@ -97,7 +104,7 @@ jobs:
                       TOOL_YAMLS+=("${path}")
                       ;;
               esac
-          done < <(git diff origin/master HEAD --color=never --name-status -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
+          done < <(git diff ${{ env.COMMIT_RANGE }} --color=never --name-status -- $(for d in "${!TOOLSET_REPOS[@]}"; do echo "${d}/"; done))
 
           declare -p TOOLSET TOOL_YAMLS;
 
@@ -123,6 +130,7 @@ jobs:
     # The type of runner that the job will run on
     runs-on: self-hosted
     needs: setup
+    if: github.ref == 'refs/heads/master'
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
