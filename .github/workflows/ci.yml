@@ -21,6 +21,7 @@ jobs:
     strategy:
       matrix:
         python-version: [ '3.x']
+    if: github.event_name == 'push'
     steps:
       - name: Print github context properties
         run: |
@@ -134,15 +135,28 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v1
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: Determine latest galaxy commit
+        run: echo ::set-env name=GALAXY_HEAD_SHA::$(git ls-remote ${{ env.GALAXY_REPO }} refs/heads/${{ env.GALAXY_RELEASE }} | cut -f1)
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
-        run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+      - name: Save latest galaxy commit to artifact file
+        run: echo ${{ env.GALAXY_HEAD_SHA }} > galaxy.sha
+
+      - name: Cache .cache/pip
+        uses: actions/cache@v2
+        id: cache-pip
+        with:
+          path: ~/.cache/pip
+          key: pip_cache_gxy_${{ env.GALAXY_HEAD_SHA }}
+
+      - name: Install planemo and other requirements
+          run: pip3 install -r requirements.txt
+
+      - name: Install tool in galaxy
+        run: shed-tools install -g http://pipeline-dev.edirex.ics.muni.cz:8080/ -a ${{ env.GALAXY_API_KEY }} -t ${{ env.TOOLSET }} > install-result.txt
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: Installation artifacts
+          path: install-result.txt
