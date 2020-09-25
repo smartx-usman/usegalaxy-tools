@@ -1,3 +1,4 @@
+planemo==0.72.0
 bioblend==0.10.0
 ephemeris==0.8.0
 pykwalify>=1.6.1
