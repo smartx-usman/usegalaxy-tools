@@ -151,7 +151,7 @@ jobs:
           key: pip_cache_gxy_${{ env.GALAXY_HEAD_SHA }}
 
       - name: Install planemo and other requirements
-          run: pip3 install -r requirements.txt
+        run: pip3 install -r requirements.txt
 
       - name: Install tool in galaxy
         run: shed-tools install -g http://pipeline-dev.edirex.ics.muni.cz:8080/ -a ${{ env.GALAXY_API_KEY }} -t ${{ env.TOOLSET }} > install-result.txt
